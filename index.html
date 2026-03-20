@@ -29,6 +29,53 @@
     #money-box #amount { font-size: 22px; font-weight: bold; }
     #money-box .click-hint { font-size: 10px; color: #999; margin-top: 4px; }
 
+    /* Pulsating donate prompt */
+    #donate-prompt {
+      position: fixed;
+      top: 22px;
+      right: 186px;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      pointer-events: none;
+      user-select: none;
+    }
+    #donate-prompt .donate-label {
+      font-size: 16px;
+      font-weight: 800;
+      color: #e30613;
+      white-space: nowrap;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      text-shadow: 0 0 8px rgba(255,255,255,0.9), 0 0 16px rgba(255,255,255,0.6);
+      animation: pulse-text 1.4s ease-in-out infinite;
+    }
+    #donate-prompt .arrows {
+      display: flex;
+      gap: 5px;
+    }
+    #donate-prompt .arrow {
+      width: 0;
+      height: 0;
+      border-top: 11px solid transparent;
+      border-bottom: 11px solid transparent;
+      border-left: 16px solid #e30613;
+      filter: drop-shadow(0 0 5px rgba(255,255,255,0.95)) drop-shadow(0 0 10px rgba(255,255,255,0.6));
+      animation: pulse-arrow 1.4s ease-in-out infinite;
+    }
+    #donate-prompt .arrow:nth-child(2) { animation-delay: 0.18s; opacity: 0.65; }
+    #donate-prompt .arrow:nth-child(3) { animation-delay: 0.36s; opacity: 0.35; }
+
+    @keyframes pulse-text {
+      0%, 100% { opacity: 1; transform: translateX(0); }
+      50% { opacity: 0.55; transform: translateX(-5px); }
+    }
+    @keyframes pulse-arrow {
+      0%, 100% { opacity: 1; transform: translateX(0); }
+      50% { opacity: 0.25; transform: translateX(-7px); }
+    }
+
     /* Twint Modal */
     #twint-overlay {
       display: none;
@@ -148,11 +195,21 @@
       #money-box .click-hint { font-size: 9px; }
       #twint-modal { padding: 20px 18px; }
       #twint-modal .modal-amount { font-size: 32px; }
+      #donate-prompt { display: none; }
     }
 
   </style>
 </head>
 <body>
+
+<div id="donate-prompt">
+  <span class="donate-label">click here to donate</span>
+  <div class="arrows">
+    <div class="arrow"></div>
+    <div class="arrow"></div>
+    <div class="arrow"></div>
+  </div>
+</div>
 
 <div id="money-box" onclick="openTwint()">
   <h3>Gesammelt 🐾</h3>
@@ -191,6 +248,155 @@
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 const amountEl = document.getElementById('amount');
+
+// ---- Sounds (Web Audio API – no files needed) ----
+let _ac = null;
+function getAC() {
+  if (!_ac) _ac = new (window.AudioContext || window.webkitAudioContext)();
+  if (_ac.state === 'suspended') _ac.resume();
+  return _ac;
+}
+function soundThrow() {
+  try {
+    const a = getAC(), osc = a.createOscillator(), g = a.createGain();
+    osc.connect(g); g.connect(a.destination);
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(110, a.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(680, a.currentTime + 0.14);
+    g.gain.setValueAtTime(0.28, a.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + 0.2);
+    osc.start(a.currentTime); osc.stop(a.currentTime + 0.22);
+  } catch(e) {}
+}
+function soundBounce() {
+  try {
+    const a = getAC(), osc = a.createOscillator(), g = a.createGain();
+    osc.connect(g); g.connect(a.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(200, a.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(50, a.currentTime + 0.13);
+    g.gain.setValueAtTime(0.5, a.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + 0.18);
+    osc.start(a.currentTime); osc.stop(a.currentTime + 0.2);
+  } catch(e) {}
+}
+function soundBark() {
+  try {
+    const a = getAC();
+    const bufLen = Math.floor(a.sampleRate * 0.16);
+    const buf = a.createBuffer(1, bufLen, a.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < bufLen; i++) d[i] = Math.random() * 2 - 1;
+    const src = a.createBufferSource(); src.buffer = buf;
+    const f = a.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 480; f.Q.value = 1.4;
+    const g = a.createGain();
+    src.connect(f); f.connect(g); g.connect(a.destination);
+    g.gain.setValueAtTime(0.7, a.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + 0.16);
+    src.start(a.currentTime); src.stop(a.currentTime + 0.18);
+  } catch(e) {}
+}
+function soundCatchMouse() {
+  try {
+    const a = getAC();
+    [0, 0.08].forEach((delay, i) => {
+      const osc = a.createOscillator(), g = a.createGain();
+      osc.connect(g); g.connect(a.destination);
+      osc.type = 'sine';
+      const t = a.currentTime + delay;
+      osc.frequency.setValueAtTime(1900 - i * 200, t);
+      osc.frequency.exponentialRampToValueAtTime(1300 - i * 100, t + 0.07);
+      g.gain.setValueAtTime(0.18, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
+      osc.start(t); osc.stop(t + 0.1);
+    });
+  } catch(e) {}
+}
+function soundCatchCat() {
+  try {
+    const a = getAC();
+    // hiss
+    const bufLen = Math.floor(a.sampleRate * 0.22);
+    const buf = a.createBuffer(1, bufLen, a.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < bufLen; i++) d[i] = Math.random() * 2 - 1;
+    const src = a.createBufferSource(); src.buffer = buf;
+    const f = a.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 2800;
+    const g = a.createGain();
+    src.connect(f); f.connect(g); g.connect(a.destination);
+    g.gain.setValueAtTime(0.25, a.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + 0.22);
+    src.start(a.currentTime); src.stop(a.currentTime + 0.24);
+    // descending meow tone
+    const osc = a.createOscillator(), og = a.createGain();
+    osc.connect(og); og.connect(a.destination);
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(720, a.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(260, a.currentTime + 0.22);
+    og.gain.setValueAtTime(0.14, a.currentTime);
+    og.gain.exponentialRampToValueAtTime(0.001, a.currentTime + 0.22);
+    osc.start(a.currentTime); osc.stop(a.currentTime + 0.24);
+  } catch(e) {}
+}
+function soundReward(combo) {
+  try {
+    const a = getAC();
+    const notes = combo ? [523, 659, 784, 1047] : [659, 784];
+    notes.forEach((f, i) => {
+      const osc = a.createOscillator(), g = a.createGain();
+      osc.connect(g); g.connect(a.destination);
+      osc.type = 'sine';
+      osc.frequency.value = f;
+      const t = a.currentTime + i * (combo ? 0.08 : 0.1);
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.28, t + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+      osc.start(t); osc.stop(t + 0.5);
+    });
+  } catch(e) {}
+}
+function soundOpenModal() {
+  try {
+    const a = getAC();
+    [880, 1108].forEach((f, i) => {
+      const osc = a.createOscillator(), g = a.createGain();
+      osc.connect(g); g.connect(a.destination);
+      osc.type = 'sine'; osc.frequency.value = f;
+      const t = a.currentTime + i * 0.1;
+      g.gain.setValueAtTime(0.22, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+      osc.start(t); osc.stop(t + 0.45);
+    });
+  } catch(e) {}
+}
+function soundCloseModal() {
+  try {
+    const a = getAC(), osc = a.createOscillator(), g = a.createGain();
+    osc.connect(g); g.connect(a.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(440, a.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(200, a.currentTime + 0.12);
+    g.gain.setValueAtTime(0.18, a.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + 0.16);
+    osc.start(a.currentTime); osc.stop(a.currentTime + 0.18);
+  } catch(e) {}
+}
+function soundLaunchTwint() {
+  try {
+    const a = getAC();
+    [523, 659, 784, 1047, 1319].forEach((f, i) => {
+      const osc = a.createOscillator(), g = a.createGain();
+      osc.connect(g); g.connect(a.destination);
+      osc.type = i < 3 ? 'sine' : 'triangle';
+      osc.frequency.value = f;
+      const t = a.currentTime + i * 0.07;
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.28, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
+      osc.start(t); osc.stop(t + 0.6);
+    });
+  } catch(e) {}
+}
 
 // Update hint for touch devices
 if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
@@ -375,6 +581,7 @@ canvas.addEventListener('mouseup', (e) => {
   ball.flightT = 0;
   ball.flying = true;
   ball.visible = true;
+  soundThrow();
 
   // Dog faces throw direction while waiting
   dog.facingLeft = nx < 0;
@@ -407,6 +614,7 @@ function update(dt) {
       ball.flying = false;
       ball.x = ball.landX;
       ball.y = ball.landY;
+      soundBounce();
       // Send dog
       dog.state = 'running';
       dog.targetX = ball.landX;
@@ -439,6 +647,7 @@ function update(dt) {
           // Arrived at critter — pick it up
           if (isCat) { cat.active = false; cat.frozen = false; dog.chasingCat = false; dog.hasCatInBasket = true; }
           else        { mouse.active = false; mouse.frozen = false; dog.chasingMouse = false; dog.hasMouseInBasket = true; }
+          soundBark();
           if (dog.pendingBall) {
             dog.pendingBall = false;
             dog.comboMode = true;
@@ -455,6 +664,7 @@ function update(dt) {
         } else {
           dog.hasBall = true;
           ball.visible = true;
+          soundBark();
           dog.state = 'fetching';
           setTimeout(() => {
             if (dog.state !== 'fetching') return;
@@ -499,6 +709,8 @@ function update(dt) {
           money = totalDistanceRun / 100 * MONEY_PER_100PX * 100 + bonusMoney;
           amountEl.textContent = 'CHF ' + money.toFixed(2);
           catchPopups.push({ x: dog.x, y: dog.y - 50, vy: -70, alpha: popupAlpha, text: popupText });
+          const isCombo = (hadMouse && hadCat) || (hadMouse && hadBall) || (hadCat && hadBall);
+          soundReward(isCombo);
         }
       }
     } else {
@@ -752,6 +964,7 @@ function catchMouse(clientX, clientY) {
   if (Math.sqrt(dx * dx + dy * dy) > mouse.size * 2.5) return false;
 
   mouse.frozen = true;
+  soundCatchMouse();
 
   // Going to ball (not chasing critter) → save ball for after
   if ((dog.state === 'running' || dog.state === 'fetching') && !dog.chasingCat && !dog.chasingMouse) {
@@ -1028,6 +1241,7 @@ function catchCat(clientX, clientY) {
   if (Math.sqrt(dx * dx + dy * dy) > cat.size * 2.5) return false;
 
   cat.frozen = true;
+  soundCatchCat();
 
   if ((dog.state === 'running' || dog.state === 'fetching') && !dog.chasingMouse && !dog.chasingCat) {
     dog.pendingBall = true;
@@ -1398,6 +1612,7 @@ requestAnimationFrame(loop);
 const TWINT_PHONE = '+41762941683';
 
 function openTwint() {
+  soundOpenModal();
   const amt = money.toFixed(2);
   document.getElementById('modal-amount').textContent = amt + ' CHF';
   document.getElementById('steps-amount').textContent = amt;
@@ -1412,6 +1627,7 @@ function openTwint() {
 }
 
 function closeTwint() {
+  soundCloseModal();
   document.getElementById('twint-overlay').classList.remove('open');
 }
 
@@ -1420,6 +1636,7 @@ function closeTwintIfOutside(e) {
 }
 
 function launchTwint() {
+  soundLaunchTwint();
   // Try Twint deep link — opens the Twint app if installed
   window.location.href = 'twint://';
   // Fallback: after short delay open App Store / Play Store if Twint didn't open
