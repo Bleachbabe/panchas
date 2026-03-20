@@ -1672,8 +1672,11 @@ let _musicSource = null;
 let _musicBuffer = null;
 let _musicMuted = false;
 let _musicReady = false;
+let _musicLoading = false;
 
 async function _loadMusic() {
+  if (_musicLoading || _musicReady) return;
+  _musicLoading = true;
   try {
     const a = getAC();
     const res = await fetch('music.opus');
