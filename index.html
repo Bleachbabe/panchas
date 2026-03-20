@@ -188,6 +188,27 @@
 
     canvas { display: block; touch-action: none; }
 
+    #music-btn {
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      z-index: 10;
+      background: white;
+      border: 2px solid #333;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      font-size: 20px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.14);
+      transition: transform 0.12s;
+    }
+    #music-btn:hover { transform: scale(1.1); }
+
     @media (max-width: 480px) {
       #money-box { top: 10px; right: 10px; padding: 7px 12px; min-width: 110px; }
       #money-box h3 { font-size: 11px; }
@@ -239,6 +260,8 @@
     <button class="btn-close" onclick="closeTwint()">Abbrechen</button>
   </div>
 </div>
+
+<button id="music-btn" title="Toggle music">🎵</button>
 
 <div id="hint">Klicken &amp; ziehen um den Ball zu werfen!</div>
 
@@ -1634,6 +1657,62 @@ function closeTwint() {
 function closeTwintIfOutside(e) {
   if (e.target === document.getElementById('twint-overlay')) closeTwint();
 }
+
+// ---- Background music (music.opus, sample-accurate loop) ----
+let _musicGain = null;
+let _musicSource = null;
+let _musicBuffer = null;
+let _musicMuted = false;
+let _musicReady = false;
+
+async function _loadMusic() {
+  try {
+    const a = getAC();
+    const res = await fetch('music.opus');
+    const raw = await res.arrayBuffer();
+    _musicBuffer = await a.decodeAudioData(raw);
+    _musicReady = true;
+    _playMusic();
+  } catch(e) {}
+}
+
+function _playMusic() {
+  if (!_musicReady || _musicMuted) return;
+  const a = getAC();
+  if (!_musicGain) {
+    _musicGain = a.createGain();
+    _musicGain.gain.value = 0.55;
+    _musicGain.connect(a.destination);
+  }
+  _musicSource = a.createBufferSource();
+  _musicSource.buffer = _musicBuffer;
+  _musicSource.loop = true;          // sample-accurate, zero-gap loop
+  _musicSource.connect(_musicGain);
+  _musicSource.start(0);
+}
+
+function toggleMusic() {
+  _musicMuted = !_musicMuted;
+  document.getElementById('music-btn').textContent = _musicMuted ? '🔇' : '🎵';
+  if (_musicMuted) {
+    if (_musicGain) _musicGain.gain.setTargetAtTime(0, getAC().currentTime, 0.04);
+  } else {
+    if (!_musicReady) {
+      _loadMusic();
+    } else {
+      if (_musicGain) _musicGain.gain.setTargetAtTime(0.55, getAC().currentTime, 0.04);
+      else _playMusic();
+    }
+  }
+}
+
+document.getElementById('music-btn').addEventListener('click', toggleMusic);
+
+// Start music on first user interaction (browser requires gesture)
+document.addEventListener('pointerdown', function _once() {
+  _loadMusic();
+  document.removeEventListener('pointerdown', _once);
+}, { once: true });
 
 function launchTwint() {
   soundLaunchTwint();
