@@ -216,7 +216,14 @@
       #money-box .click-hint { font-size: 9px; }
       #twint-modal { padding: 20px 18px; }
       #twint-modal .modal-amount { font-size: 32px; }
-      #donate-prompt { display: none; }
+      #donate-prompt { top: 14px; right: 126px; gap: 6px; }
+      #donate-prompt .donate-label { font-size: 10px; letter-spacing: 0.2px; }
+      #donate-prompt .arrows { gap: 3px; }
+      #donate-prompt .arrow {
+        border-top: 7px solid transparent;
+        border-bottom: 7px solid transparent;
+        border-left: 10px solid #e30613;
+      }
     }
 
   </style>
@@ -605,6 +612,7 @@ canvas.addEventListener('mouseup', (e) => {
   ball.flying = true;
   ball.visible = true;
   soundThrow();
+  _loadMusic();
 
   // Dog faces throw direction while waiting
   dog.facingLeft = nx < 0;
@@ -1708,11 +1716,6 @@ function toggleMusic() {
 
 document.getElementById('music-btn').addEventListener('click', toggleMusic);
 
-// Start music on first user interaction (browser requires gesture)
-document.addEventListener('pointerdown', function _once() {
-  _loadMusic();
-  document.removeEventListener('pointerdown', _once);
-}, { once: true });
 
 function launchTwint() {
   soundLaunchTwint();
